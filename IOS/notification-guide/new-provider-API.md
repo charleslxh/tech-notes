@@ -29,7 +29,7 @@ the new Provider API is based on [HTTP/2.0](https://http2.github.io/), which mea
 
 4.  Binary
 
-    HTTP2 transmit header and data with binary, so it very efficent.
+    HTTP2 transmit header and data with binary stream, so it very efficient.
 
 5.  Payload Size
 
@@ -55,7 +55,7 @@ the new Provider API is based on [HTTP/2.0](https://http2.github.io/), which mea
     | apns-priority   | 10          |
     | content-length  | 33          |
 
-    **Tips**:
+    **TIPS**:
 
     -   `apns-id`: A identifer of notification, if there is an error sending the notification, APNs uses this value to identify the notification to your server. If you omit this header, a new UUID is created by APNs and returned in the response.
 
@@ -71,7 +71,7 @@ the new Provider API is based on [HTTP/2.0](https://http2.github.io/), which mea
 
         > **5**: Send the push message at a time that takes into account power considerations for the device.
 
-    -   `content-length`: The length of the body content. You must provide a value for this header, and the body length must be less than or equal to 4096 bytes.
+    -   `content-length`: The length of the body content. You must provide a value for this header, and the body length must be less than or equal to 4096 bytes. If `content.length` is not equal body length, request will not be finish.
 
 ### Response
 
@@ -93,7 +93,7 @@ the new Provider API is based on [HTTP/2.0](https://http2.github.io/), which mea
         | reason       | The error indicating the reason for the failure, [show all reasons](https://developer.apple.com/library/ios/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Chapters/APNsProviderAPI.html#//apple_ref/doc/uid/TP40008194-CH101-SW5) |
         | timestamp    | time           |
 
-        **Tips**:
+        **TIPS**:
 
         -   `timestamp`:  If the value in the: status header is **410**, the value of this key is the last time
             at which APNs confirmed that the device token was no longer valid for the topic. Stop pushing notifications until the device registers a token with a later timestamp with your provider.
@@ -105,6 +105,7 @@ the new Provider API is based on [HTTP/2.0](https://http2.github.io/), which mea
     ```js
     var http2 = require('http2');
     var path = require('path');
+    var log = require('log4j');
 
     // we can set certificate and key with three ways:
     // 1: Set the htt2.globalAgent = new http2.Agent({...})
@@ -116,8 +117,8 @@ the new Provider API is based on [HTTP/2.0](https://http2.github.io/), which mea
     //       options.rejectUnAuthrized = ...
     var options = {
         'rejectUnauthorized': true,
-        'cert': fs.readFileSync(path.join(__dirname, '/xxx.crt')), // binary
-        'key': fs.readFileSync(path.join(__dirname, '/xxx.key')), // binary
+        'cert': fs.readFileSync(path.join(__dirname, '/xxx.pem')), // binary
+        'key': fs.readFileSync(path.join(__dirname, '/xxx.pem')), // binary
         'method': 'POST', // apns only accept this method.
         'host': 'api.development.push.apple.com', // apns development or production gateway.
         'protocol': 'https', // this node-http2 will set to https by default.
@@ -125,52 +126,86 @@ the new Provider API is based on [HTTP/2.0](https://http2.github.io/), which mea
         'path': '/3/device/<device-token>' // device-token is you send notification target.
     };
 
+    var payload = {
+        aps: {
+            alert: 'Hello World!', // string or object
+            badge: 1, // number, optional
+            sound: 'suger.mp3', // string, optional
+            category: '..' // string, optional
+            'content-available': 1, // number, optional
+        }
+    }
+
+    payloadString = JSON.stringify(payload);
+
     options.headers = {
         'apns-id': 'eabeae54-14a8-11e5-b60b-1697f925ec7b', // optional.
         'apns-topic': 'aaa', // optional, default is certificate subject.
         'apns-expiration': 0, // optional, default 0.
         'apns-priority': 10, // optional, default 10.
-        'content-length': 33
+        'content-length': payloadString.length
     }
 
     // If you want to reuse connection,
     // you should use the same htt2.Agent instance.
     // the htt2.Agent instance will store the connection in
     options.agent = new htt2.Agent(options);
-    var request = htt2.get(options);
+    var request = htt2.request(options);
 
     // when receive a response, this event will be fired.
     request.on('response', function(res){
+        var data = null;
+        res.on('data', function(chuck) {
+            data += chuck;
+        });
 
+        res.on('error', function(error) {
+            log.error('APNS error', error);
+        });
+
+        res.on('end', function() {
+            if (res.statusCode === 200) {
+                log.debug('Send notification successfully.');
+            } else {
+                log.warn('APNS error: ' + res.statusCode + ' => ' + data);
+            }
+        });
     });
 
     // when server push data, this event will be fired.
     request.on('push', function(pushRequest){
-
+        filename = __dirname + new Date().getTime();
+        pushRequest.on('response', function(pushResponse) {
+          pushResponse.pipe(fs.createWriteStream(filename));
+        });
     });
     ```
+
+    **TIPS**
+
+    -   `Node` version must more than 5.0.0-rc.1, Only after this version, TLS connection support client to
+    send `ALPNProtocols` param.
+
+        -   [`Node 5.0.0-rc.1 TLS model`](https://github.com/nodejs/node/blob/v5.0.0-rc.1/doc/api/tls.markdown)
+        -   [ALPN/NPN Protocol](http://segmentfault.com/a/1190000002757622)
+
 
 2. Use `Curl`, If you CURL does not support HTTP2, [click here](../../linux/curl/curl-http2.md)
 
     ```bash
-    curl -i -X POST \
+    curl -i \
     -H "Content-Type:application/json" \
     -H "apns-id:eabeae54-14a8-11e5-b60b-1697f925ec7b" \
     -H "apns-expiration:0" \
     -H "apns-priority:10" \
-    -H "content-length:33" \
-    -d \
-    ' {
-        "aps" : {
-            "alert" : "Hello World!"
-        }
-    }' \
+    -H "content-length:40" \
+    -d '{ "aps" : { "alert" : "Hello World!" } }' \
     --cert ./dev.pem \
     --key ./dev.pem \
     --http2 'https://api.development.push.apple.com/3/device/00fc13adff785122b4ad28809a3420982341241421348097878e577c991de8f0'
     ```
 
-    **Tips**:
+    **TIPS**:
 
     -   `--cert`, `--key`:  The certificate must be in **PKCS#12**(`.p12`) format if using Secure Transport, or **PEM**(`.pem`) format if using any other engine.
 
