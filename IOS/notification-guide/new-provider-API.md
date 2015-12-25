@@ -43,7 +43,7 @@ the new Provider API is based on [HTTP/2.0](https://http2.github.io/), which mea
 -   HEADERS
 
     | Header Name | Value           |
-    | ----------- | --------------- |
+    | :---------: | :-------------: |
     | :method     | POST            |
     | :scheme     | https           |
     | :path       | /3/device/target-device-token |
@@ -89,7 +89,7 @@ the new Provider API is based on [HTTP/2.0](https://http2.github.io/), which mea
     -   If a failure request occured, the following is response body.
 
         | Key          | Describtion    |
-        | -------------| ---------------|
+        | :-----------:| :-------------:|
         | reason       | The error indicating the reason for the failure, [show all reasons](https://developer.apple.com/library/ios/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Chapters/APNsProviderAPI.html#//apple_ref/doc/uid/TP40008194-CH101-SW5) |
         | timestamp    | time           |
 
