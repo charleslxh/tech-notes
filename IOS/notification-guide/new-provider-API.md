@@ -221,3 +221,7 @@ the new Provider API is based on [HTTP/2.0](https://http2.github.io/), which mea
 3. Use [node-apn](https://github.com/argon/node-apn)
 
     Implementing.
+
+4. About Jpush V3 API.
+
+    Jpush has impleated the IOS new provider API which based on HTTP2. It supports IOS and Android.
